@@ -1,5 +1,6 @@
 # 本仓库解决在中国大陆使用teslaandroid 项目遇到的问题
 
+注意:使用了adb remount后将无法进行 ota 升级 teslaandroid 程序
 使用 teslaandroid 项目的时候会遇到以下问题：
 
 1.在使用最新版 gps 功能的时候，会出现 gps 定位不准的情况，实际是由于坐标系的转换导致
