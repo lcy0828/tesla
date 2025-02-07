@@ -1,331 +1,296 @@
 <html>
-  <head>
-    <style>
-      body,
-      html {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        width: 100%;
-        height: 100%;
-        z-index: 1;
-      }
 
-      #canvas {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        display: none;
-        z-index: 1;
-      }
+<head>
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
 
-      #image {
-        width: 100%;
-        display: none;
-      }
-    </style>
-    <script src="pcmplayer.js"></script>
-    <script src="reconnecting-websocket.js"></script>
-    <script src="estimator.js"></script>
-    <script src="gcoord.global.prod.js"></script>
-    <script src="require.js"></script>
-  </head>
+    #canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      display: none;
+      z-index: 1;
+    }
 
-  <body>
-    <img id="image" />
-    <canvas id="canvas"></canvas>
-    <script>
-      var audioPlayer;
+    #image {
+      width: 100%;
+      display: none;
+    }
+  </style>
 
-      var audioWebsocketUrl;
-      var displayWebsocketUrl;
-      var gpsWebsocketUrl;
-      var touchScreenWebsocketUrl;
+  <script src="reconnecting-websocket.js"></script>
+  <script src="audioplayback.js"></script>
+  <script src="estimator.js"></script>
+  <script src="gcoord.global.prod.js"></script>
+  <script src="require.js"></script>
+</head>
 
-      var audioSocket;
-      var displaySocket;
-      var gpsSocket;
-      var touchScreenSocket;
+<body>
+  <img id="image" />
+  <canvas id="canvas"></canvas>
+  <script>
 
-      var isAudioEnabled;
-      var audioVolume;
 
-      var displayRenderer;
-      var displayBinaryType;
-      var displayWidth;
-      var displayHeight;
-      var displayRendererAdded = false;
-      var gpsEstimator;
-      var gpsRunning = false;
+    var audioWebsocketUrl;
+    var displayWebsocketUrl;
+    var gpsWebsocketUrl;
+    var touchScreenWebsocketUrl;
 
-      window.parent.addEventListener(
-        "message",
-        (event) => {
-          if (event.data.includes("touchScreenCommand")) {
-            if (typeof touchScreenSocket != "undefined") {
-              var command = event.data.replace("touchScreenCommand:", "");
-              touchScreenSocket.send(command);
-            }
-            return;
-          }
-          const config = JSON.parse(event.data);
-          audioWebsocketUrl = config.audioWebsocketUrl;
-          displayWebsocketUrl = config.displayWebsocketUrl;
-          gpsWebsocketUrl = config.gpsWebsocketUrl;
-          touchScreenWebsocketUrl = config.touchScreenWebsocketUrl;
-          isAudioEnabled = config.isAudioEnabled;
-          audioVolume = config.audioVolume;
-          displayRenderer = config.displayRenderer;
-          displayBinaryType = config.displayBinaryType;
-          displayWidth = config.displayWidth;
-          displayHeight = config.displayHeight;
 
-          if (document.readyState === "complete") {
-            if (!audioSocket) createAudioSocket(audioWebsocketUrl);
-            if (!displaySocket)
-              createDisplaySocket(
-                displayWebsocketUrl,
-                displayRenderer,
-                displayBinaryType
-              );
-            if (!gpsSocket) createGpsSocket(gpsWebsocketUrl);
-            if (!touchScreenSocket)
-              createTouchScreenSocket(touchScreenWebsocketUrl);
-          } else {
-            document.addEventListener("DOMContentLoaded", function () {
-              if (!audioSocket) createAudioSocket(audioWebsocketUrl);
-              if (!displaySocket)
-                createDisplaySocket(
-                  displayWebsocketUrl,
-                  displayRenderer,
-                  displayBinaryType
-                );
-              if (!gpsSocket) createGpsSocket(gpsWebsocketUrl);
-              if (!touchScreenSocket)
-                createTouchScreenSocket(touchScreenWebsocketUrl);
-            });
-          }
-        },
-        false
-      );
+    var displaySocket;
+    var gpsSocket;
+    var touchScreenSocket;
 
-      function createAudioSocket(url) {
-        if (!isAudioEnabled) {
+
+
+    var displayRenderer;
+    var displayBinaryType;
+    var displayWidth;
+    var displayHeight;
+    var displayRendererAdded = false;
+    var gpsEstimator;
+    var gpsRunning = false;
+
+    var isGPSEnabled = 'false';
+
+    window.parent.addEventListener(
+      "message",
+      (event) => {
+        if (event.data === "iframeReady") {
           return;
         }
-        audioSocket = new ReconnectingWebSocket(url, null, {
-          binaryType: "arraybuffer",
-        });
-
-        audioSocket.onopen = () => {
-          log("Audio: Websocket connection established");
-        };
-
-        audioSocket.onclose = () => {
-          log("Audio: Websocket connection closed");
-        };
-
-        audioSocket.onerror = (error) => {
-          log("Audio: " + error);
-        };
-
-        audioSocket.onmessage = (event) => {
-          if (
-            typeof audioPlayer != "undefined" &&
-            event.data instanceof ArrayBuffer
-          ) {
-            audioPlayer.feed(event.data);
+        if (event.data.includes("touchScreenCommand")) {
+          if (typeof touchScreenSocket != "undefined") {
+            var command = event.data.replace('touchScreenCommand:', '');
+            touchScreenSocket.send(command);
           }
-        };
-      }
-
-      function createDisplaySocket(url, renderer, binaryType) {
-        if (!displayRendererAdded) {
-          //var rendererScript = document.createElement('script');
-          //rendererScript.src = renderer + '.js';
-          //document.head.appendChild(rendererScript);
-          var img = document.getElementById("image");
-          var canvas = document.getElementById("canvas");
-          img.style.display = "block";
-          img.src = url;
-          canvas.style.display = "none";
-          displayRendererAdded = true;
+          return;
         }
+        const config = JSON.parse(event.data);
 
-        //displaySocket = new ReconnectingWebSocket(url, null, { binaryType: binaryType });
+        audioWebsocketUrl = config.audioWebsocketUrl;
+        displayWebsocketUrl = config.displayWebsocketUrl;
+        gpsWebsocketUrl = config.gpsWebsocketUrl;
+        touchScreenWebsocketUrl = config.touchScreenWebsocketUrl;
 
-        //displaySocket.onopen = () => {
-        //  log("Display: Websocket connection established");
-        //};
+        isGPSEnabled = config.isGPSEnabled;
 
-        //displaySocket.onclose = () => {
-        //  log("Display: Websocket connection closed")
-        //};
+        //setAudioEnabled(config.isAudioEnabled);
+        //setAudioVolume(config.audioVolume);
 
-        //displaySocket.onerror = error => {
-        //  log("Display: " + error)
-        //};
+        displayRenderer = config.displayRenderer;
+        displayBinaryType = config.displayBinaryType;
+        displayWidth = config.displayWidth;
+        displayHeight = config.displayHeight;
 
-        //displaySocket.onmessage = (event) => {
-        //  drawDisplayFrame(event.data);
-        //};
-      }
+        if (document.readyState === "complete") {
 
-      function createGpsSocket(url) {
-        gpsSocket = new ReconnectingWebSocket(url);
-        gpsEstimator = new GpsEstimator();
+          if (!displaySocket) createDisplaySocket(displayWebsocketUrl, displayRenderer, displayBinaryType);
+          if (!gpsSocket) createGpsSocket(gpsWebsocketUrl);
+          if (!touchScreenSocket) createTouchScreenSocket(touchScreenWebsocketUrl);
+        } else {
+          document.addEventListener("DOMContentLoaded", function () {
 
-        gpsSocket.onopen = () => {
-          log("GPS: Websocket connection established");
-          gpsRunning = true;
-        };
-
-        gpsSocket.onclose = () => {
-          log("GPS: Websocket connection closed");
-          gpsRunning = false;
-        };
-
-        gpsSocket.onerror = (error) => {
-          log("GPS: " + error);
-        };
-
-        gpsSocket.onmessage = (event) => {
-          log("GPS: " + message);
-        };
-      }
-
-      function createTouchScreenSocket(url) {
-        touchScreenSocket = new ReconnectingWebSocket(url);
-
-        touchScreenSocket.onopen = () => {
-          log("Touch: Websocket connection established");
-        };
-
-        touchScreenSocket.onclose = () => {
-          log("Touch: Websocket connection closed");
-        };
-
-        touchScreenSocket.onerror = (error) => {
-          log("Touch: " + error);
-        };
-
-        touchScreenSocket.onmessage = (event) => {
-          log("Touch: " + message);
-        };
-      }
-
-      window.parent.addEventListener("click", function (e) {
-        if (!audioPlayer && isAudioEnabled) {
-          audioPlayer = new PCMPlayer({
-            inputCodec: "Float32",
-            channels: 2,
-            sampleRate: 48000,
-            flushTime: 200,
+            if (!displaySocket) createDisplaySocket(displayWebsocketUrl, displayRenderer, displayBinaryType);
+            if (!gpsSocket) createGpsSocket(gpsWebsocketUrl);
+            if (!touchScreenSocket) createTouchScreenSocket(touchScreenWebsocketUrl);
           });
         }
-      });
-      function feedPlayer(data) {
-        if (typeof audioPlayer != "undefined" && isAudioEnabled) {
-          audioPlayer.feed(data);
+      },
+      false
+    );
+
+
+
+    async function checkVideoStream() {
+      while (true) {
+        try {
+          await image.decode();
+        } catch {
+          let src = image.src;
+          image.src = "";
+          image.src = src;
         }
-      }
-      function setPlayerVolume(volume) {
-        if (typeof audioPlayer != "undefined" && isAudioEnabled) {
-          audioPlayer.volume(volume);
-        }
-      }
 
-      async function checkPermissionAndStartUpdates() {
-        const permissionStatus = await navigator.permissions.query({
-          name: "geolocation",
-        });
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
 
-        if (permissionStatus.state === "prompt") {
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              // If the permission was just granted, start the location updates
-              startLocationUpdates();
-            },
-            (error) => {
-              log("Location access has been denied.");
-            }
-          );
-        } else if (permissionStatus.state === "granted") {
-          startLocationUpdates();
-        } else {
-          log("Location access has been denied.");
-        }
+    function createDisplaySocket(url, renderer, binaryType) {
+      if (!displayRendererAdded) {
+        //var rendererScript = document.createElement('script');
+        //rendererScript.src = renderer + '.js';
+        //document.head.appendChild(rendererScript);
+        var img = document.getElementById("image");
+        var canvas = document.getElementById("canvas");
+        img.style.display = "block";
+        img.src = url;
+        canvas.style.display = "none";
+        displayRendererAdded = true;
+
+        checkVideoStream();
       }
 
-      function updateLocation(position) {
-	
-        //console.log("1");
-        if (!gpsRunning) return;
-        //console.log("2");
-        if (!position.coords) return;
-        //console.log("3");
-        gpsSocket.send(toLocationData(position));
-        //console.log("4");
+      //displaySocket = new ReconnectingWebSocket(url, null, { binaryType: binaryType });
+
+      //displaySocket.onopen = () => {
+      //  log("Display: Websocket connection established");
+      //};
+
+      //displaySocket.onclose = () => {
+      //  log("Display: Websocket connection closed")
+      //};
+
+      //displaySocket.onerror = error => {
+      //  log("Display: " + error)
+      //};
+
+      //displaySocket.onmessage = (event) => {
+      //  drawDisplayFrame(event.data);
+      //};
+    }
+
+    function createGpsSocket(url) {
+      if (isGPSEnabled === 'false') {
+        return;
       }
+      gpsSocket = new ReconnectingWebSocket(url);
+      gpsEstimator = new GpsEstimator();
 
-      function logError(error) {
-        log(error);
-      }
+      gpsSocket.onopen = () => {
+        log("GPS: Websocket connection established")
+        gpsRunning = true;
+      };
 
-      function updateHandler() {
-        // We want to timeout the call just before the next one appears, so they don't stack up.. if it arrives
-        // that late it's useless anyway
-        navigator.geolocation.getCurrentPosition(updateLocation, logError, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 900,
-        });
-	      //console.log("testtest");
-      }
+      gpsSocket.onclose = () => {
+        log("GPS: Websocket connection closed")
+        gpsRunning = false;
+      };
 
-      function startLocationUpdates() {
-        setInterval(updateHandler, 1000);
-      }
+      gpsSocket.onerror = error => {
+        log("GPS: " + error);
+      };
 
-      function toLocationData(position) {
-        // const gcoord = require("gcoord");
-        const result = gcoord.transform(
-          [position.coords.longitude, position.coords.latitude],
-          gcoord.GCJ02,
-          gcoord.WGS84
-        );
-      
-        console.log("gpschangetowgs");
-        //console.log(position.coords.longitude,position.coords.latitude)
-        //console.log(result);
-        // We need to set the timestamp anyway, so just reconstruct the structure..
-        const pos = {
-          longitude: result[0],
-          latitude: result[1],
-          accuracy: position.coords.accuracy,
-          timestamp: Date.now(),
-        };
-
-        const estimate = gpsEstimator.estimate(pos);
-
-        const locationData = JSON.stringify({
-          latitude: String(pos.latitude),
-          longitude: String(pos.longitude),
-          speed: String(estimate.speed),
-          bearing: String(estimate.heading),
-          vertical_accuracy: String(pos.accuracy),
-          timestamp: String(pos.timestamp),
-        });
-        //console.log(locationData)
-        return locationData;
-      }
-
-      function log(string) {
-        //console.log(string);
-      }
+      gpsSocket.onmessage = (event) => {
+        log("GPS: " + message);
+      };
 
       // Start the permission check and potentially start location updates
       checkPermissionAndStartUpdates();
-    </script>
-  </body>
+    }
+
+    function createTouchScreenSocket(url) {
+      touchScreenSocket = new ReconnectingWebSocket(url);
+
+      touchScreenSocket.onopen = () => {
+        log("Touch: Websocket connection established")
+      };
+
+      touchScreenSocket.onclose = () => {
+        log("Touch: Websocket connection closed")
+      };
+
+      touchScreenSocket.onerror = error => {
+        log("Touch: " + error);
+      };
+
+      touchScreenSocket.onmessage = (event) => {
+        log("Touch: " + message);
+      };
+    }
+
+
+    window.parent.addEventListener("click", function (e) {
+
+      if (pcmPlayerNode == null && isAudioEnabled) {
+        //startAudioPlayback();
+      }
+    });
+
+    async function checkPermissionAndStartUpdates() {
+      if (isGPSEnabled === 'false') {
+        return;
+      }
+      const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+
+      if (permissionStatus.state === 'prompt') {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          // If the permission was just granted, start the location updates
+          startLocationUpdates();
+        }, (error) => {
+          log('Location access has been denied.');
+        });
+      } else if (permissionStatus.state === 'granted') {
+        startLocationUpdates();
+      } else {
+        log('Location access has been denied.');
+      }
+    }
+
+    function updateLocation(position) {
+      if (!gpsRunning) return;
+      if (!position.coords) return
+
+      gpsSocket.send(toLocationData(position));
+    }
+
+    function logError(error) {
+      log(error);
+    }
+
+    function updateHandler() {
+      navigator.geolocation.getCurrentPosition(updateLocation, logError);
+    }
+
+    function startLocationUpdates() {
+      setInterval(updateHandler, 1000);
+    }
+
+    function toLocationData(position) {
+      // We need to set the timestamp anyway, so just reconstruct the structure..
+      const result = gcoord.transform(
+        [position.coords.longitude, position.coords.latitude],
+        gcoord.GCJ02,
+        gcoord.WGS84
+      );
+      console.log("gpschangetowgs");
+      const pos = {
+        longitude: result[0],
+        latitude: result[1],
+        accuracy: position.coords.accuracy,
+        timestamp: Date.now(),
+      };
+
+      const estimate = gpsEstimator.estimate(pos);
+
+      const locationData = JSON.stringify({
+        latitude: String(pos.latitude),
+        longitude: String(pos.longitude),
+        speed: String(estimate.speed),
+        bearing: String(estimate.heading),
+        vertical_accuracy: String(5/*pos.accuracy*/),
+        timestamp: String(pos.timestamp)
+      });
+
+      return locationData;
+    }
+
+    function log(string) {
+      //console.log(string);
+    }
+
+    window.addEventListener('load', function () {
+      window.parent.postMessage("iframeReady", "*");
+    })
+  </script>
+</body>
+
 </html>
